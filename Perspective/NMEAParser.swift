@@ -213,13 +213,13 @@ struct NMEAParser {
     }
     
     private static func parseDBT(fields: [String]) -> NMEAData? {
-        guard fields.count >= 5 else { return nil }
+        guard fields.count >= 3 else { return nil } // Minimum fields for $SDDPT,depth,offset
         return .dbt(DBTData(
             depthMeters: Double(fields[1]),
-            depthFeet: Double(fields[3]),
-            depthFathoms: Double(fields[5]),
-            offset: fields.count > 6 ? Double(fields[6]) : nil,
-            offsetUnits: fields.count > 7 ? fields[7] : nil
+            depthFeet: nil, // Not directly provided by DPT
+            depthFathoms: nil, // Not directly provided by DPT
+            offset: Double(fields[2]),
+            offsetUnits: nil // Units are typically 'M' for meters, but not explicitly in the example
         ))
     }
     
