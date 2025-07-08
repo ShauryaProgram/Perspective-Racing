@@ -188,7 +188,27 @@ class DataGridView: UIView {
     private let latLonView = DataGridItemView(title: "LAT / LON", iconName: "location.fill"); private let sogView = DataGridItemView(title: "SPEED", iconName: "speedometer"); private let cogView = DataGridItemView(title: "HEADING", iconName: "safari.fill"); private let windView = DataGridItemView(title: "WIND (T)", iconName: "wind"); private let depthView = DataGridItemView(title: "DEPTH", iconName: "ruler.fill")
     override init(frame: CGRect) { super.init(frame: frame); setupViews() }; required init?(coder: NSCoder) { fatalError() }
     private func setupViews() -> Void { let topStack = UIStackView(arrangedSubviews: [windView, sogView, depthView]); topStack.distribution = .fillEqually; topStack.spacing = 12; let bottomStack = UIStackView(arrangedSubviews: [latLonView, cogView]); bottomStack.distribution = .fillEqually; bottomStack.spacing = 12; let mainStack = UIStackView(arrangedSubviews: [topStack, bottomStack]); mainStack.translatesAutoresizingMaskIntoConstraints = false; mainStack.axis = .vertical; mainStack.spacing = 12; addSubview(mainStack); NSLayoutConstraint.activate([mainStack.topAnchor.constraint(equalTo: topAnchor), mainStack.leadingAnchor.constraint(equalTo: leadingAnchor), mainStack.trailingAnchor.constraint(equalTo: trailingAnchor), mainStack.bottomAnchor.constraint(equalTo: bottomAnchor)]) }
-    func update(with data: NMEAParser.NMEAData) -> Void { switch data { case .rmc(let d): if let lat = d.latitude, let lon = d.longitude { latLonView.setValue(String(format: "%.4f, %.4f", lat, lon)) }; if let sog = d.speedOverGround { sogView.setValue(String(format: "%.1f kts", sog)) }; if let cog = d.courseOverGround { cogView.setValue(String(format: "%.1f°", cog)) }; case .gga(let d): if let lat = d.latitude, let lon = d.longitude { latLonView.setValue(String(format: "%.4f, %.4f", lat, lon)) }; case .mwv(let d): if let speed = d.windSpeed, let angle = d.windAngle, d.reference == "T" { windView.setValue(String(format: "%.1fkt @ %d°", speed, angle)) }; case .dbt(let d): depthView.setValue(String(format: "%.1f m", d.depthMeters)) } }
+    func update(with data: NMEAParser.NMEAData) -> Void {
+        switch data {
+        case .rmc(let d):
+            if let lat = d.latitude, let lon = d.longitude { latLonView.setValue(String(format: "%.4f, %.4f", lat, lon)) }
+            if let sog = d.speedOverGround { sogView.setValue(String(format: "%.1f kts", sog)) }
+            if let cog = d.courseOverGround { cogView.setValue(String(format: "%.1f°", cog)) }
+        case .gga(let d):
+            if let lat = d.latitude, let lon = d.longitude { latLonView.setValue(String(format: "%.4f, %.4f", lat, lon)) }
+            // You can add more GGA fields to display here if needed
+        case .mwv(let d):
+            if let speed = d.windSpeed, let angle = d.windAngle, d.reference == "T" { windView.setValue(String(format: "%.1fkt @ %d°", speed, angle)) }
+        case .dbt(let d):
+            depthView.setValue(String(format: "%.1f m", d.depthMeters))
+        case .vtg(let d):
+            if let cog = d.courseTrue { cogView.setValue(String(format: "%.1f°", cog)) }
+            if let sog = d.speedKnots { sogView.setValue(String(format: "%.1f kts", sog)) }
+        case .hdg(let d):
+            if let heading = d.heading { cogView.setValue(String(format: "%.1f° (HDG)", heading)) }
+            // You can add magnetic variation if you want to display it
+        }
+    }
 }
 
 class DataGridItemView: UIView {
@@ -215,15 +235,171 @@ class TCPClient {
     private func processReceivedData(_ data: Data) -> Void { buffer.append(data); let terminator = "\r\n".data(using: .utf8)!; while let range = buffer.range(of: terminator) { let sentenceData = buffer.subdata(in: 0..<range.lowerBound); if let sentenceString = String(data: sentenceData, encoding: .utf8), !sentenceString.isEmpty { print("[TCP] Received sentence: \(sentenceString)"); delegate?.tcpClientDidReceive(sentence: sentenceString) }; buffer.removeSubrange(0..<range.upperBound) } }
 }
 struct NMEAParser {
-    enum NMEAData { case rmc(RMCData), gga(GGAData), mwv(MWVData), dbt(DBTData) }; struct RMCData { let latitude: Double?, longitude: Double?, speedOverGround: Double?, courseOverGround: Double? }; struct GGAData { let latitude: Double?, longitude: Double? }; struct MWVData { let windAngle: Int?, reference: String?, windSpeed: Double?, units: String? }; struct DBTData { let depthMeters: Double }
-    static func parse(_ sentence: String) -> NMEAData? { guard validateChecksum(sentence) else { print("[Parser] Invalid checksum for: \(sentence)"); return nil }; let fields = sentence.split(separator: ",").map { String($0) }; guard !fields.isEmpty else { print("[Parser] Empty fields for: \(sentence)"); return nil }; let sentenceType = String(fields[0].dropFirst()); let result = parse(type: sentenceType, fields: fields); if result == nil { print("[Parser] Unhandled or invalid sentence type: \(sentenceType)") }; return result }
-    private static func parse(type: String, fields: [String]) -> NMEAData? { switch type { case "GPRMC", "GNRMC": return parseRMC(fields: fields); case "GPGGA", "GNGGA": return parseGGA(fields: fields); case "WIMWV": return parseMWV(fields: fields); case "SDDBT", "DPT": return parseDBT(fields: fields); default: return nil } }
-    private static func validateChecksum(_ sentence: String) -> Bool { guard sentence.first == "$", let starIndex = sentence.lastIndex(of: "*") else { return false }; let checksumContent = sentence[sentence.index(after: sentence.startIndex)..<starIndex]; let providedChecksumString = String(sentence[starIndex...].dropFirst()); guard let providedChecksum = UInt8(providedChecksumString, radix: 16) else { return false }; let calculatedChecksum = checksumContent.utf8.reduce(0, ^); return providedChecksum == calculatedChecksum }
-    private static func parseRMC(fields: [String]) -> NMEAData? { guard fields.count >= 12, fields[2] == "A" else { return nil }; return .rmc(RMCData(latitude: parseNMEACoordinate(value: fields[3], indicator: fields[4]), longitude: parseNMEACoordinate(value: fields[5], indicator: fields[6]), speedOverGround: Double(fields[7]), courseOverGround: Double(fields[8]))) }
-    private static func parseGGA(fields: [String]) -> NMEAData? { guard fields.count >= 7, let quality = Int(fields[6]), quality > 0 else { return nil }; return .gga(GGAData(latitude: parseNMEACoordinate(value: fields[2], indicator: fields[3]), longitude: parseNMEACoordinate(value: fields[4], indicator: fields[5]))) }
-    private static func parseMWV(fields: [String]) -> NMEAData? { guard fields.count >= 6, fields[5] == "A" else { return nil }; var speed = Double(fields[3]); if fields[4] == "M" { speed = (speed ?? 0) * 1.94384 } else if fields[4] == "K" { speed = (speed ?? 0) * 0.539957 }; return .mwv(MWVData(windAngle: Int(Double(fields[1]) ?? 0), reference: fields[2], windSpeed: speed, units: "N")) }
-    private static func parseDBT(fields: [String]) -> NMEAData? { if fields[0].contains("DBT") { guard fields.count >= 5, let depthMeters = Double(fields[3]) else { return nil }; return .dbt(DBTData(depthMeters: depthMeters)) } else if fields[0].contains("DPT") { guard fields.count >= 2, let depthMeters = Double(fields[1]) else { return nil }; return .dbt(DBTData(depthMeters: depthMeters)) }; return nil }
-    private static func parseNMEACoordinate(value: String, indicator: String) -> Double? { guard !value.isEmpty, let coordinate = Double(value) else { return nil }; let degrees = floor(coordinate / 100); let minutes = (coordinate / 100 - degrees) * 100; var decimalDegrees = degrees + (minutes / 60.0); if indicator == "S" || indicator == "W" { decimalDegrees *= -1 }; return decimalDegrees }
+    enum NMEAData {
+        case rmc(RMCData)
+        case gga(GGAData)
+        case mwv(MWVData)
+        case dbt(DBTData)
+        case vtg(VTGData)
+        case hdg(HDGData)
+    }
+
+    struct RMCData {
+        let latitude: Double?
+        let longitude: Double?
+        let speedOverGround: Double?
+        let courseOverGround: Double?
+    }
+
+    struct GGAData {
+        let latitude: Double?
+        let longitude: Double?
+        let fixQuality: Int?
+        let satellites: Int?
+        let hdop: Double?
+        let altitude: Double?
+    }
+
+    struct MWVData {
+        let windAngle: Int?
+        let reference: String?
+        let windSpeed: Double?
+        let units: String?
+    }
+
+    struct DBTData {
+        let depthMeters: Double
+    }
+
+    struct VTGData {
+        let courseTrue: Double?
+        let speedKnots: Double?
+        let speedKmH: Double?
+    }
+
+    struct HDGData {
+        let heading: Double?
+        let magneticVariation: Double?
+        let variationDirection: String?
+    }
+
+    static func parse(_ sentence: String) -> NMEAData? {
+        guard validateChecksum(sentence) else {
+            print("[Parser] Invalid checksum for: \(sentence)")
+            return nil
+        }
+
+        let fields = sentence.split(separator: ",").map { String($0) }
+        guard !fields.isEmpty else {
+            print("[Parser] Empty fields for: \(sentence)")
+            return nil
+        }
+
+        let sentenceType = String(fields[0].dropFirst())
+        let result = parse(type: sentenceType, fields: fields)
+        if result == nil {
+            print("[Parser] Unhandled or invalid sentence type: \(sentenceType)")
+        }
+        return result
+    }
+
+    private static func parse(type: String, fields: [String]) -> NMEAData? {
+        switch type {
+        case "GPRMC", "GNRMC": return parseRMC(fields: fields)
+        case "GPGGA", "GNGGA": return parseGGA(fields: fields)
+        case "WIMWV": return parseMWV(fields: fields)
+        case "SDDBT", "DPT": return parseDBT(fields: fields)
+        case "GPVTG", "GNVTG": return parseVTG(fields: fields)
+        case "HCHDG", "HDG": return parseHDG(fields: fields)
+        default: return nil
+        }
+    }
+
+    private static func validateChecksum(_ sentence: String) -> Bool {
+        guard sentence.first == "$", let starIndex = sentence.lastIndex(of: "*") else {
+            return false
+        }
+
+        let checksumContent = sentence[sentence.index(after: sentence.startIndex)..<starIndex]
+        let providedChecksumString = String(sentence[starIndex...].dropFirst())
+
+        guard let providedChecksum = UInt8(providedChecksumString, radix: 16) else {
+            return false
+        }
+
+        let calculatedChecksum = checksumContent.utf8.reduce(0, ^)
+        return providedChecksum == calculatedChecksum
+    }
+
+    private static func parseRMC(fields: [String]) -> NMEAData? {
+        guard fields.count >= 12, fields[2] == "A" else { return nil }
+        return .rmc(RMCData(
+            latitude: parseNMEACoordinate(value: fields[3], indicator: fields[4]),
+            longitude: parseNMEACoordinate(value: fields[5], indicator: fields[6]),
+            speedOverGround: Double(fields[7]),
+            courseOverGround: Double(fields[8])
+        ))
+    }
+
+    private static func parseGGA(fields: [String]) -> NMEAData? {
+        guard fields.count >= 15 else { return nil } // GGA has 15 fields
+        return .gga(GGAData(
+            latitude: parseNMEACoordinate(value: fields[2], indicator: fields[3]),
+            longitude: parseNMEACoordinate(value: fields[4], indicator: fields[5]),
+            fixQuality: Int(fields[6]),
+            satellites: Int(fields[7]),
+            hdop: Double(fields[8]),
+            altitude: Double(fields[9])
+        ))
+    }
+
+    private static func parseMWV(fields: [String]) -> NMEAData? {
+        guard fields.count >= 6, fields[5] == "A" else { return nil }
+        var speed = Double(fields[3])
+        if fields[4] == "M" { speed = (speed ?? 0) * 1.94384 } // Convert m/s to knots
+        else if fields[4] == "K" { speed = (speed ?? 0) * 0.539957 } // Convert km/h to knots
+        return .mwv(MWVData(windAngle: Int(Double(fields[1]) ?? 0), reference: fields[2], windSpeed: speed, units: "N"))
+    }
+
+    private static func parseDBT(fields: [String]) -> NMEAData? {
+        if fields[0].contains("DBT") {
+            guard fields.count >= 5, let depthMeters = Double(fields[3]) else { return nil }
+            return .dbt(DBTData(depthMeters: depthMeters))
+        } else if fields[0].contains("DPT") {
+            guard fields.count >= 2, let depthMeters = Double(fields[1]) else { return nil }
+            return .dbt(DBTData(depthMeters: depthMeters))
+        }
+        return nil
+    }
+
+    private static func parseVTG(fields: [String]) -> NMEAData? {
+        guard fields.count >= 9 else { return nil }
+        return .vtg(VTGData(
+            courseTrue: Double(fields[1]),
+            speedKnots: Double(fields[5]),
+            speedKmH: Double(fields[7])
+        ))
+    }
+
+    private static func parseHDG(fields: [String]) -> NMEAData? {
+        guard fields.count >= 6 else { return nil }
+        return .hdg(HDGData(
+            heading: Double(fields[1]),
+            magneticVariation: Double(fields[4]),
+            variationDirection: fields[5]
+        ))
+    }
+
+    private static func parseNMEACoordinate(value: String, indicator: String) -> Double? {
+        guard !value.isEmpty, let coordinate = Double(value) else { return nil }
+        let degrees = floor(coordinate / 100)
+        let minutes = (coordinate / 100 - degrees) * 100
+        var decimalDegrees = degrees + (minutes / 60.0)
+        if indicator == "S" || indicator == "W" {
+            decimalDegrees *= -1
+        }
+        return decimalDegrees
+    }
 }
 struct SettingsManager {
     private enum Keys { static let ipAddress = "ipAddressKey", port = "portKey" }; static func save(ip: String, port: String) { let d = UserDefaults.standard; d.set(ip, forKey: Keys.ipAddress); d.set(port, forKey: Keys.port) }; static func load() -> (ip: String?, port: String?) { let d = UserDefaults.standard; return (d.string(forKey: Keys.ipAddress), d.string(forKey: Keys.port)) }
