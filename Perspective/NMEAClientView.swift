@@ -232,8 +232,9 @@ class DataGridView: UIView {
         case .hdt(let d):
             if let heading = d.heading { cogView.setValue(String(format: "%.1f°", heading)) }
         case .mwv(let d):
-            if let speed = d.windSpeed, let angle = d.windAngle, d.reference == "T" {
-                windView.setValue(String(format: "%.1fkt @ %.0f°", speed, angle))
+            if let speed = d.windSpeed, let angle = d.windAngle, let reference = d.reference {
+                let windType = reference == "T" ? "T" : "R"
+                windView.setValue(String(format: "%.1fkt @ %.0f° (%@)", speed, angle, windType))
             }
         case .gll(_): // GLL does not have speed or course data
             break
