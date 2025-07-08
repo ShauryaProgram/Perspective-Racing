@@ -28,13 +28,14 @@ struct NMEAParser {
         }
         
         let sentenceType = String(fields[0].dropFirst())
-        
+        print("[Parser] Debug: Processing sentence type: \(sentenceType)") // Added debug print
+
         switch sentenceType {
         case "GPRMC", "GNRMC": return parseRMC(fields: fields)
         case "GPGGA", "GNGGA": return parseGGA(fields: fields)
         case "GPVTG", "GNVTG": return parseVTG(fields: fields)
         case "GPGLL", "GNGLL": return parseGLL(fields: fields)
-        case "SDDBT", "DBT": return parseDBT(fields: fields)
+        case "SDDBT", "DBT", "SDDPT": return parseDBT(fields: fields)
         case "HCHDG", "HDG": return parseHDT(fields: fields)
         case "WIMWV", "MWV": return parseMWV(fields: fields)
         default:
@@ -213,12 +214,18 @@ struct NMEAParser {
     }
     
     private static func parseDBT(fields: [String]) -> NMEAData? {
-        guard fields.count >= 3 else { return nil } // Minimum fields for $SDDPT,depth,offset
+        guard fields.count >= 3 else {
+            print("[Parser] DBT: Insufficient fields. Expected at least 3, got \(fields.count). Sentence: \(fields.joined(separator: ","))")
+            return nil
+        }
+        let depthMeters = Double(fields[1])
+        let offset = Double(fields[2])
+        print("[Parser] DBT: Raw depth field: '\(fields[1])', Parsed depthMeters: \(depthMeters ?? -1.0), Raw offset field: '\(fields[2])', Parsed offset: \(offset ?? -1.0)")
         return .dbt(DBTData(
-            depthMeters: Double(fields[1]),
+            depthMeters: depthMeters,
             depthFeet: nil, // Not directly provided by DPT
             depthFathoms: nil, // Not directly provided by DPT
-            offset: Double(fields[2]),
+            offset: offset,
             offsetUnits: nil // Units are typically 'M' for meters, but not explicitly in the example
         ))
     }
