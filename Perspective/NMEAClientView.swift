@@ -21,13 +21,13 @@ class NMEA_Client_ViewController: UIViewController {
     private let titleLabel = UILabel()
     private let instructionsLabel = UILabel()
     private let helpButton = UIButton(type: .system)
-    private let connectionStatusView = ConnectionStatusView(frame: .zero) // FIX: Initialized with .zero
+    private let connectionStatusView = ConnectionStatusView(frame: .zero)
     private let ipInputView = LabeledTextFieldView(label: "SERVER IP", placeholder: "192.168.56.1")
     private let portInputView = LabeledTextFieldView(label: "PORT", placeholder: "50000")
     private let connectButton = UIButton()
     private let disconnectButton = UIButton()
-    private let dataGrid = DataGridView(frame: .zero) // FIX: Initialized with .zero
-    private let rawOutputView = RawOutputView(frame: .zero) // FIX: Initialized with .zero
+    private let dataGrid = DataGridView(frame: .zero)
+    private let rawOutputView = RawOutputView(frame: .zero)
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -69,7 +69,7 @@ class NMEA_Client_ViewController: UIViewController {
     private func setupLayout() -> Void {
         let scrollView = UIScrollView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.showsVerticalScrollIndicator = false // This line hides the scroll bar.
+        scrollView.showsVerticalScrollIndicator = false
         view.addSubview(scrollView)
 
         let contentView = UIView()
@@ -176,7 +176,7 @@ class ConnectionStatusView: UIView {
     private let statusIndicator = UIView(); private let statusLabel = UILabel()
     enum State { case disconnected, connecting, connected, error }
     override init(frame: CGRect) { super.init(frame: frame); setupViews() }; required init?(coder: NSCoder) { fatalError() }
-    private func setupViews() -> Void { [statusIndicator, statusLabel].forEach { $0.translatesAutoresizingMaskIntoConstraints = false; addSubview($0) }; statusIndicator.layer.cornerRadius = 6; statusLabel.font = .systemFont(ofSize: 14, weight: .medium); statusLabel.textColor = .white; NSLayoutConstraint.activate([ statusIndicator.leadingAnchor.constraint(equalTo: leadingAnchor), statusIndicator.centerYAnchor.constraint(equalTo: centerYAnchor), statusIndicator.widthAnchor.constraint(equalToConstant: 12), statusIndicator.heightAnchor.constraint(equalToConstant: 12), statusLabel.leadingAnchor.constraint(equalTo: statusIndicator.trailingAnchor, constant: 8), statusLabel.trailingAnchor.constraint(equalTo: trailingAnchor), statusLabel.topAnchor.constraint(equalTo: topAnchor), statusLabel.bottomAnchor.constraint(equalTo: bottomAnchor) ]) }
+    private func setupViews() -> Void { [statusIndicator, statusLabel].forEach { $0.translatesAutoresizingMaskIntoConstraints = false; addSubview($0) }; statusIndicator.layer.cornerRadius = 6; statusLabel.font = .systemFont(ofSize: 14, weight: .medium); statusLabel.textColor = .white; NSLayoutConstraint.activate([ statusIndicator.leadingAnchor.constraint(equalTo: leadingAnchor), statusIndicator.centerYAnchor.constraint(equalTo: centerYAnchor), statusIndicator.widthAnchor.constraint(equalToConstant: 12), statusIndicator.constraint(equalToConstant: 12), statusLabel.leadingAnchor.constraint(equalTo: statusIndicator.trailingAnchor, constant: 8), statusLabel.trailingAnchor.constraint(equalTo: trailingAnchor), statusLabel.topAnchor.constraint(equalTo: topAnchor), statusLabel.bottomAnchor.constraint(equalTo: bottomAnchor) ]) }
     func setState(_ state: State, text: String) -> Void { statusLabel.text = text; var color = UIColor.gray; switch state { case .disconnected: color = .gray; case .connecting: color = .systemYellow; case .connected: color = .systemGreen; case .error: color = .systemRed }; UIView.animate(withDuration: 0.3) { self.statusIndicator.backgroundColor = color } }
 }
 class LabeledTextFieldView: UIView {
