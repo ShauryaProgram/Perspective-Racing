@@ -21,7 +21,7 @@ class NMEAManager: ObservableObject {
         connectionState = .connecting
         tcpClient = TCPClient()
         tcpClient?.delegate = self
-        tcpClient?.connect(to: ip, port: UInt16(port) ?? 50000)
+        tcpClient?.connect(to: ip, port: UInt16(port))
     }
     
     func disconnect() {
