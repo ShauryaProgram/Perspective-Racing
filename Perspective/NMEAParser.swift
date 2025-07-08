@@ -10,6 +10,7 @@ struct NMEAParser {
         case gll(GLLData)
         case dbt(DBTData)
         case hdt(HDTData)
+        case mwv(MWVData)
     }
 
     static func parse(_ sentence: String) -> NMEAData? {
@@ -35,6 +36,7 @@ struct NMEAParser {
         case "GPGLL", "GNGLL": return parseGLL(fields: fields)
         case "SDDBT", "DBT": return parseDBT(fields: fields)
         case "HCHDG", "HDG": return parseHDT(fields: fields)
+        case "WIMWV", "MWV": return parseMWV(fields: fields)
         default:
             print("[Parser] Unhandled sentence type: \(sentenceType)")
             return nil
@@ -106,6 +108,14 @@ struct NMEAParser {
         let magneticDeviationDirection: String?
         let magneticVariation: Double?
         let magneticVariationDirection: String?
+    }
+
+    struct MWVData {
+        let windAngle: Double?
+        let reference: String?
+        let windSpeed: Double?
+        let units: String?
+        let status: String?
     }
 
     // MARK: - Private Parsing Logic
@@ -221,6 +231,23 @@ struct NMEAParser {
             magneticDeviationDirection: fields[3].isEmpty ? nil : fields[3],
             magneticVariation: fields[4].isEmpty ? nil : Double(fields[4]),
             magneticVariationDirection: fields[5].isEmpty ? nil : fields[5]
+        ))
+    }
+
+    private static func parseMWV(fields: [String]) -> NMEAData? {
+        guard fields.count >= 5 else { return nil }
+        let windAngle = Double(fields[1])
+        let reference = fields[2]
+        let windSpeed = Double(fields[3])
+        let units = fields[4]
+        let status = fields.count > 5 ? fields[5] : nil
+        
+        return .mwv(MWVData(
+            windAngle: windAngle,
+            reference: reference,
+            windSpeed: windSpeed,
+            units: units,
+            status: status
         ))
     }
 

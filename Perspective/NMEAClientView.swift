@@ -159,13 +159,13 @@ class NMEA_Client_ViewController: UIViewController {
     @objc private func helpButtonTapped() -> Void { showInstructionsPopup() }
     private func handleFirstLaunch() -> Void { let key = "hasLaunchedBefore"; if !UserDefaults.standard.bool(forKey: key) { showInstructionsPopup(); UserDefaults.standard.set(true, forKey: key) } }
     private func showInstructionsPopup() -> Void { let t = "Welcome to Perspective Racing"; let m = "To get started:\n\n1. Connect your device to the same Wi-Fi network as your NMEA data source.\n\n2. Enter the IP Address and Port of your NMEA source.\n\n3. Tap Connect to begin receiving data."; let a = UIAlertController(title: t, message: m, preferredStyle: .alert); a.addAction(UIAlertAction(title: "Got it!", style: .default)); present(a, animated: true) }
-    private func loadSettings() -> Void { let s = SettingsManager.load(); ipInputView.text = s.ip ?? "192.168.56.1"; portInputView.text = s.port ?? "50000" }
+    private func loadSettings() -> Void { let s = SettingsManager.load(); ipInputView.text = s.ip ?? "192.168.56.1"; portInputView.text = String(s.port ?? 50000) }
     private func presentAlert(title: String, message: String) -> Void { let a = UIAlertController(title: title, message: message, preferredStyle: .alert); a.addAction(UIAlertAction(title: "OK", style: .default)); present(a, animated: true) }
 }
 
 // MARK: - TCPClientDelegate Conformance
 extension NMEA_Client_ViewController: TCPClientDelegate {
-    func tcpClientDidConnect() -> Void { connectionState = .connected; if let ip = ipInputView.text, let port = ipInputView.text { SettingsManager.save(ip: ip, port: port) } }
+    func tcpClientDidConnect() -> Void { connectionState = .connected; if let ip = ipInputView.text, let port = portInputView.text { SettingsManager.save(ip: ip, port: port) } }
     func tcpClientDidDisconnect() -> Void { connectionState = .disconnected }
     func tcpClientEncountered(error: String) -> Void { connectionState = .error(error) }
     func tcpClientDidReceive(sentence: String) -> Void { DispatchQueue.main.async { self.rawOutputView.appendText(sentence); if let p = NMEAParser.parse(sentence) { self.dataGrid.update(with: p) } } }
@@ -176,7 +176,7 @@ class ConnectionStatusView: UIView {
     private let statusIndicator = UIView(); private let statusLabel = UILabel()
     enum State { case disconnected, connecting, connected, error }
     override init(frame: CGRect) { super.init(frame: frame); setupViews() }; required init?(coder: NSCoder) { fatalError() }
-    private func setupViews() -> Void { [statusIndicator, statusLabel].forEach { $0.translatesAutoresizingMaskIntoConstraints = false; addSubview($0) }; statusIndicator.layer.cornerRadius = 6; statusLabel.font = .systemFont(ofSize: 14, weight: .medium); statusLabel.textColor = .white; NSLayoutConstraint.activate([ statusIndicator.leadingAnchor.constraint(equalTo: leadingAnchor), statusIndicator.centerYAnchor.constraint(equalTo: centerYAnchor), statusIndicator.widthAnchor.constraint(equalToConstant: 12), statusIndicator.constraint(equalToConstant: 12), statusLabel.leadingAnchor.constraint(equalTo: statusIndicator.trailingAnchor, constant: 8), statusLabel.trailingAnchor.constraint(equalTo: trailingAnchor), statusLabel.topAnchor.constraint(equalTo: topAnchor), statusLabel.bottomAnchor.constraint(equalTo: bottomAnchor) ]) }
+    private func setupViews() -> Void { [statusIndicator, statusLabel].forEach { $0.translatesAutoresizingMaskIntoConstraints = false; addSubview($0) }; statusIndicator.layer.cornerRadius = 6; statusLabel.font = .systemFont(ofSize: 14, weight: .medium); statusLabel.textColor = .white; NSLayoutConstraint.activate([ statusIndicator.leadingAnchor.constraint(equalTo: leadingAnchor), statusIndicator.centerYAnchor.constraint(equalTo: centerYAnchor), statusIndicator.widthAnchor.constraint(equalToConstant: 12), statusIndicator.heightAnchor.constraint(equalToConstant: 12), statusLabel.leadingAnchor.constraint(equalTo: statusIndicator.trailingAnchor, constant: 8), statusLabel.trailingAnchor.constraint(equalTo: trailingAnchor), statusLabel.topAnchor.constraint(equalTo: topAnchor), statusLabel.bottomAnchor.constraint(equalTo: bottomAnchor) ]) }
     func setState(_ state: State, text: String) -> Void { statusLabel.text = text; var color = UIColor.gray; switch state { case .disconnected: color = .gray; case .connecting: color = .systemYellow; case .connected: color = .systemGreen; case .error: color = .systemRed }; UIView.animate(withDuration: 0.3) { self.statusIndicator.backgroundColor = color } }
 }
 class LabeledTextFieldView: UIView {
@@ -185,9 +185,37 @@ class LabeledTextFieldView: UIView {
     private func setupViews(label: UILabel) -> Void { [label, textField].forEach { $0.translatesAutoresizingMaskIntoConstraints = false; addSubview($0) }; label.font = .systemFont(ofSize: 12, weight: .bold); label.textColor = .white; textField.borderStyle = .none; textField.backgroundColor = UIColor(white: 1.0, alpha: 0.1); textField.layer.cornerRadius = 8; textField.textColor = .white; textField.font = .monospacedSystemFont(ofSize: 16, weight: .regular); textField.leftView = UIView(frame: CGRect(x: 0, y: 0, width: 12, height: 0)); textField.leftViewMode = .always; NSLayoutConstraint.activate([ label.topAnchor.constraint(equalTo: topAnchor), label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4), textField.topAnchor.constraint(equalTo: label.bottomAnchor, constant: 4), textField.leadingAnchor.constraint(equalTo: leadingAnchor), textField.trailingAnchor.constraint(equalTo: trailingAnchor), textField.bottomAnchor.constraint(equalTo: bottomAnchor), textField.heightAnchor.constraint(equalToConstant: 44) ]) }
 }
 class DataGridView: UIView {
-    private let latLonView = DataGridItemView(title: "LAT / LON", iconName: "location.fill"); private let sogView = DataGridItemView(title: "SPEED", iconName: "speedometer"); private let cogView = DataGridItemView(title: "HEADING", iconName: "safari.fill"); private let windView = DataGridItemView(title: "WIND (T)", iconName: "wind"); private let depthView = DataGridItemView(title: "DEPTH", iconName: "ruler.fill")
+    private let latLonView = DataGridItemView(title: "LAT / LON", iconName: "location.fill")
+    private let sogView = DataGridItemView(title: "SPEED", iconName: "speedometer")
+    private let cogView = DataGridItemView(title: "HEADING", iconName: "safari.fill")
+    private let windView = DataGridItemView(title: "WIND (T)", iconName: "wind")
+    private let depthView = DataGridItemView(title: "DEPTH", iconName: "ruler.fill")
+
     override init(frame: CGRect) { super.init(frame: frame); setupViews() }; required init?(coder: NSCoder) { fatalError() }
-    private func setupViews() -> Void { let topStack = UIStackView(arrangedSubviews: [windView, sogView, depthView]); topStack.distribution = .fillEqually; topStack.spacing = 12; let bottomStack = UIStackView(arrangedSubviews: [latLonView, cogView]); bottomStack.distribution = .fillEqually; bottomStack.spacing = 12; let mainStack = UIStackView(arrangedSubviews: [topStack, bottomStack]); mainStack.translatesAutoresizingMaskIntoConstraints = false; mainStack.axis = .vertical; mainStack.spacing = 12; addSubview(mainStack); NSLayoutConstraint.activate([mainStack.topAnchor.constraint(equalTo: topAnchor), mainStack.leadingAnchor.constraint(equalTo: leadingAnchor), mainStack.trailingAnchor.constraint(equalTo: trailingAnchor), mainStack.bottomAnchor.constraint(equalTo: bottomAnchor)]) }
+
+    private func setupViews() -> Void {
+        let topStack = UIStackView(arrangedSubviews: [windView, sogView, depthView])
+        topStack.distribution = .fillEqually
+        topStack.spacing = 12
+
+        let bottomStack = UIStackView(arrangedSubviews: [latLonView, cogView])
+        bottomStack.distribution = .fillEqually
+        bottomStack.spacing = 12
+
+        let mainStack = UIStackView(arrangedSubviews: [topStack, bottomStack])
+        mainStack.translatesAutoresizingMaskIntoConstraints = false
+        mainStack.axis = .vertical
+        mainStack.spacing = 12
+
+        addSubview(mainStack)
+        NSLayoutConstraint.activate([
+            mainStack.topAnchor.constraint(equalTo: topAnchor),
+            mainStack.leadingAnchor.constraint(equalTo: leadingAnchor),
+            mainStack.trailingAnchor.constraint(equalTo: trailingAnchor),
+            mainStack.bottomAnchor.constraint(equalTo: bottomAnchor)
+        ])
+    }
+
     func update(with data: NMEAParser.NMEAData) -> Void {
         switch data {
         case .rmc(let d):
@@ -196,17 +224,19 @@ class DataGridView: UIView {
             if let cog = d.courseOverGround { cogView.setValue(String(format: "%.1f°", cog)) }
         case .gga(let d):
             if let lat = d.latitude, let lon = d.longitude { latLonView.setValue(String(format: "%.4f, %.4f", lat, lon)) }
-            // You can add more GGA fields to display here if needed
-        case .mwv(let d):
-            if let speed = d.windSpeed, let angle = d.windAngle, d.reference == "T" { windView.setValue(String(format: "%.1fkt @ %d°", speed, angle)) }
-        case .dbt(let d):
-            depthView.setValue(String(format: "%.1f m", d.depthMeters))
         case .vtg(let d):
-            if let cog = d.courseTrue { cogView.setValue(String(format: "%.1f°", cog)) }
+            if let cog = d.trueTrack { cogView.setValue(String(format: "%.1f°", cog)) }
             if let sog = d.speedKnots { sogView.setValue(String(format: "%.1f kts", sog)) }
-        case .hdg(let d):
-            if let heading = d.heading { cogView.setValue(String(format: "%.1f° (HDG)", heading)) }
-            // You can add magnetic variation if you want to display it
+        case .dbt(let d):
+            if let depth = d.depthMeters { depthView.setValue(String(format: "%.1f m", depth)) }
+        case .hdt(let d):
+            if let heading = d.heading { cogView.setValue(String(format: "%.1f°", heading)) }
+        case .mwv(let d):
+            if let speed = d.windSpeed, let angle = d.windAngle, d.reference == "T" {
+                windView.setValue(String(format: "%.1fkt @ %.0f°", speed, angle))
+            }
+        case .gll(_): // GLL does not have speed or course data
+            break
         }
     }
 }
@@ -223,186 +253,6 @@ class RawOutputView: UIView {
     override init(frame: CGRect) { super.init(frame: frame); setupViews() }; required init?(coder: NSCoder) { fatalError() }
     private func setupViews() -> Void { textView.translatesAutoresizingMaskIntoConstraints = false; addSubview(textView); textView.isEditable = false; textView.backgroundColor = UIColor(white: 0, alpha: 0.2); textView.layer.cornerRadius = 8; textView.textColor = .white; textView.font = .monospacedSystemFont(ofSize: 10, weight: .regular); textView.text = "RAW NMEA 0183 SENTENCES\n-----------------------\n"; NSLayoutConstraint.activate([textView.topAnchor.constraint(equalTo: topAnchor), textView.leadingAnchor.constraint(equalTo: leadingAnchor), textView.trailingAnchor.constraint(equalTo: trailingAnchor), textView.bottomAnchor.constraint(equalTo: bottomAnchor)]) }
     func appendText(_ text: String) -> Void { textView.text += text + "\n"; let range = NSRange(location: textView.text.count - 1, length: 1); textView.scrollRangeToVisible(range) }
-}
-
-// MARK: - Unchanged Networking & Parsing Logic
-protocol TCPClientDelegate: AnyObject { func tcpClientDidConnect(); func tcpClientDidDisconnect(); func tcpClientDidReceive(sentence: String); func tcpClientEncountered(error: String) }
-class TCPClient {
-    weak var delegate: TCPClientDelegate?; private var connection: NWConnection?; private var buffer = Data(); private let queue = DispatchQueue(label: "com.yourapp.tcpclient.network", qos: .userInitiated)
-    func connect(to host: String, port: UInt16) -> Void { print("[TCP] Attempting to connect to \(host):\(port)"); guard let nwPort = NWEndpoint.Port(rawValue: port) else { let msg = "Invalid Port: \(port)"; print("[TCP] Error: \(msg)"); delegate?.tcpClientEncountered(error: msg); return }; let endpoint = NWEndpoint.Host(host); connection = NWConnection(host: endpoint, port: nwPort, using: .tcp); connection?.stateUpdateHandler = { [weak self] newState in print("[TCP] State changed: \(newState)"); switch newState { case .ready: self?.delegate?.tcpClientDidConnect(); self?.receive(); case .failed(let error): self?.delegate?.tcpClientEncountered(error: error.localizedDescription); self?.disconnect(); case .cancelled: self?.delegate?.tcpClientDidDisconnect(); case .waiting(let error): self?.delegate?.tcpClientEncountered(error: "Connection waiting: \(error.localizedDescription)"); default: break } }; connection?.start(queue: queue) }
-    func disconnect() -> Void { print("[TCP] Disconnecting."); connection?.cancel(); connection = nil }
-    private func receive() -> Void { connection?.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] (data, _, isComplete, error) in if let data = data, !data.isEmpty { self?.processReceivedData(data) }; if let error = error { print("[TCP] Receive error: \(error.localizedDescription)"); self?.delegate?.tcpClientEncountered(error: error.localizedDescription); self?.disconnect(); return }; if isComplete { print("[TCP] Connection closed by server."); self?.disconnect() } else { self?.receive() } } }
-    private func processReceivedData(_ data: Data) -> Void { buffer.append(data); let terminator = "\r\n".data(using: .utf8)!; while let range = buffer.range(of: terminator) { let sentenceData = buffer.subdata(in: 0..<range.lowerBound); if let sentenceString = String(data: sentenceData, encoding: .utf8), !sentenceString.isEmpty { print("[TCP] Received sentence: \(sentenceString)"); delegate?.tcpClientDidReceive(sentence: sentenceString) }; buffer.removeSubrange(0..<range.upperBound) } }
-}
-struct NMEAParser {
-    enum NMEAData {
-        case rmc(RMCData)
-        case gga(GGAData)
-        case mwv(MWVData)
-        case dbt(DBTData)
-        case vtg(VTGData)
-        case hdg(HDGData)
-    }
-
-    struct RMCData {
-        let latitude: Double?
-        let longitude: Double?
-        let speedOverGround: Double?
-        let courseOverGround: Double?
-    }
-
-    struct GGAData {
-        let latitude: Double?
-        let longitude: Double?
-        let fixQuality: Int?
-        let satellites: Int?
-        let hdop: Double?
-        let altitude: Double?
-    }
-
-    struct MWVData {
-        let windAngle: Int?
-        let reference: String?
-        let windSpeed: Double?
-        let units: String?
-    }
-
-    struct DBTData {
-        let depthMeters: Double
-    }
-
-    struct VTGData {
-        let courseTrue: Double?
-        let speedKnots: Double?
-        let speedKmH: Double?
-    }
-
-    struct HDGData {
-        let heading: Double?
-        let magneticVariation: Double?
-        let variationDirection: String?
-    }
-
-    static func parse(_ sentence: String) -> NMEAData? {
-        guard validateChecksum(sentence) else {
-            print("[Parser] Invalid checksum for: \(sentence)")
-            return nil
-        }
-
-        let fields = sentence.split(separator: ",").map { String($0) }
-        guard !fields.isEmpty else {
-            print("[Parser] Empty fields for: \(sentence)")
-            return nil
-        }
-
-        let sentenceType = String(fields[0].dropFirst())
-        let result = parse(type: sentenceType, fields: fields)
-        if result == nil {
-            print("[Parser] Unhandled or invalid sentence type: \(sentenceType)")
-        }
-        return result
-    }
-
-    private static func parse(type: String, fields: [String]) -> NMEAData? {
-        switch type {
-        case "GPRMC", "GNRMC": return parseRMC(fields: fields)
-        case "GPGGA", "GNGGA": return parseGGA(fields: fields)
-        case "WIMWV": return parseMWV(fields: fields)
-        case "SDDBT", "DPT": return parseDBT(fields: fields)
-        case "GPVTG", "GNVTG": return parseVTG(fields: fields)
-        case "HCHDG", "HDG": return parseHDG(fields: fields)
-        default: return nil
-        }
-    }
-
-    private static func validateChecksum(_ sentence: String) -> Bool {
-        guard sentence.first == "$", let starIndex = sentence.lastIndex(of: "*") else {
-            return false
-        }
-
-        let checksumContent = sentence[sentence.index(after: sentence.startIndex)..<starIndex]
-        let providedChecksumString = String(sentence[starIndex...].dropFirst())
-
-        guard let providedChecksum = UInt8(providedChecksumString, radix: 16) else {
-            return false
-        }
-
-        let calculatedChecksum = checksumContent.utf8.reduce(0, ^)
-        return providedChecksum == calculatedChecksum
-    }
-
-    private static func parseRMC(fields: [String]) -> NMEAData? {
-        guard fields.count >= 12, fields[2] == "A" else { return nil }
-        return .rmc(RMCData(
-            latitude: parseNMEACoordinate(value: fields[3], indicator: fields[4]),
-            longitude: parseNMEACoordinate(value: fields[5], indicator: fields[6]),
-            speedOverGround: Double(fields[7]),
-            courseOverGround: Double(fields[8])
-        ))
-    }
-
-    private static func parseGGA(fields: [String]) -> NMEAData? {
-        guard fields.count >= 15 else { return nil } // GGA has 15 fields
-        return .gga(GGAData(
-            latitude: parseNMEACoordinate(value: fields[2], indicator: fields[3]),
-            longitude: parseNMEACoordinate(value: fields[4], indicator: fields[5]),
-            fixQuality: Int(fields[6]),
-            satellites: Int(fields[7]),
-            hdop: Double(fields[8]),
-            altitude: Double(fields[9])
-        ))
-    }
-
-    private static func parseMWV(fields: [String]) -> NMEAData? {
-        guard fields.count >= 6, fields[5] == "A" else { return nil }
-        var speed = Double(fields[3])
-        if fields[4] == "M" { speed = (speed ?? 0) * 1.94384 } // Convert m/s to knots
-        else if fields[4] == "K" { speed = (speed ?? 0) * 0.539957 } // Convert km/h to knots
-        return .mwv(MWVData(windAngle: Int(Double(fields[1]) ?? 0), reference: fields[2], windSpeed: speed, units: "N"))
-    }
-
-    private static func parseDBT(fields: [String]) -> NMEAData? {
-        if fields[0].contains("DBT") {
-            guard fields.count >= 5, let depthMeters = Double(fields[3]) else { return nil }
-            return .dbt(DBTData(depthMeters: depthMeters))
-        } else if fields[0].contains("DPT") {
-            guard fields.count >= 2, let depthMeters = Double(fields[1]) else { return nil }
-            return .dbt(DBTData(depthMeters: depthMeters))
-        }
-        return nil
-    }
-
-    private static func parseVTG(fields: [String]) -> NMEAData? {
-        guard fields.count >= 9 else { return nil }
-        return .vtg(VTGData(
-            courseTrue: Double(fields[1]),
-            speedKnots: Double(fields[5]),
-            speedKmH: Double(fields[7])
-        ))
-    }
-
-    private static func parseHDG(fields: [String]) -> NMEAData? {
-        guard fields.count >= 6 else { return nil }
-        return .hdg(HDGData(
-            heading: Double(fields[1]),
-            magneticVariation: Double(fields[4]),
-            variationDirection: fields[5]
-        ))
-    }
-
-    private static func parseNMEACoordinate(value: String, indicator: String) -> Double? {
-        guard !value.isEmpty, let coordinate = Double(value) else { return nil }
-        let degrees = floor(coordinate / 100)
-        let minutes = (coordinate / 100 - degrees) * 100
-        var decimalDegrees = degrees + (minutes / 60.0)
-        if indicator == "S" || indicator == "W" {
-            decimalDegrees *= -1
-        }
-        return decimalDegrees
-    }
-}
-struct SettingsManager {
-    private enum Keys { static let ipAddress = "ipAddressKey", port = "portKey" }; static func save(ip: String, port: String) { let d = UserDefaults.standard; d.set(ip, forKey: Keys.ipAddress); d.set(port, forKey: Keys.port) }; static func load() -> (ip: String?, port: String?) { let d = UserDefaults.standard; return (d.string(forKey: Keys.ipAddress), d.string(forKey: Keys.port)) }
 }
 
 private extension UIButton {
