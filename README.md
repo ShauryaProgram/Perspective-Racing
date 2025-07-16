@@ -158,5 +158,6 @@ SOFTWARE.
 
 **Author:** ShauryaProgram  
 **Repository:** [Perspective-Racing](https://github.com/ShauryaProgram/Perspective-Racing)  
-For questions or collaboration requests, open an issue or contact the maintainer directly.
+
+For questions or collaboration requests, please open an issue or contact the maintainer directly through GitHub.
 ---
